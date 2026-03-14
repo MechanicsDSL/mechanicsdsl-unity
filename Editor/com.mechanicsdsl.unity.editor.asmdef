@@ -1,0 +1,18 @@
+{
+    "name": "com.mechanicsdsl.unity.editor",
+    "rootNamespace": "MechanicsDSL.Classical.Editor",
+    "references": [
+        "com.mechanicsdsl.unity.runtime"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
