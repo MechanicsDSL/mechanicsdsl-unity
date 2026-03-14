@@ -9,8 +9,9 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/status-planned-lightgrey" alt="Status: Planned">
-  <img src="https://img.shields.io/badge/engines-Unity%20%7C%20Unreal-blue" alt="Unity and Unreal">
+  <img src="https://img.shields.io/badge/status-active-green" alt="Active">
+  <img src="https://img.shields.io/badge/Unity-2021.3%2B-black" alt="Unity">
+  <img src="https://img.shields.io/badge/components-3-blue" alt="3 Components">
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT License"></a>
   <a href="https://github.com/MechanicsDSL/mechanicsdsl"><img src="https://img.shields.io/badge/core-mechanicsdsl-blue" alt="Core Package"></a>
 </p>
@@ -19,78 +20,114 @@
 
 ## Overview
 
-`mechanicsdsl-unity` brings the MechanicsDSL compiler into game engine workflows. Define a physical system in DSL notation and generate drop-in simulation components for Unity (C#) or Unreal Engine (C++) — bypassing built-in physics engines where analytical accuracy matters more than real-time approximation.
-
-Target applications include physically accurate game mechanics, interactive science museum exhibits, engineering digital twins, robotics simulators, and educational physics visualizations.
+`mechanicsdsl-unity` provides Unity MonoBehaviour components generated from MechanicsDSL DSL specifications. All components bypass PhysX with Lagrangian equations of motion, include Noether-based energy monitoring, and expose parameters in the Unity Inspector for real-time tuning.
 
 ---
 
-## Planned Capabilities
+## Components
 
-### Unity Integration
-- **MonoBehaviour components** — Generated C# classes implementing `FixedUpdate` with DSL-derived equations of motion
-- **Unity Package Manager** — Installable via UPM git URL; no manual file copying
-- **Inspector integration** — DSL parameters exposed as serialized fields, editable in the Unity Inspector at runtime
-- **Gizmo visualization** — Automatic drawing of constraint surfaces, phase space trajectories, and conservation law monitors in the Scene view
-- **Physics override** — Optional Rigidbody replacement for objects governed by DSL dynamics rather than PhysX
+### Classical Mechanics
 
-### Unreal Engine Integration
-- **Actor components** — Generated C++ `UActorComponent` subclasses with `TickComponent` implementing DSL dynamics
-- **Blueprint exposure** — Key parameters and state variables exposed to Blueprint via `UPROPERTY` macros
-- **Plugin scaffolding** — Auto-generated Unreal plugin structure with `uplugin` manifest and `Build.cs`
-- **Chaos Physics bypass** — Direct position/velocity injection for objects under DSL control
+| Component | System | Conserved | Gizmos |
+|-----------|--------|-----------|--------|
+| `PendulumComponent` | Simple pendulum | Energy (Noether) | Pivot, rod, bob |
+| `DoublePendulumComponent` | Double pendulum (chaotic) | Energy (Noether) | Full double pendulum |
+| `CoupledPendulumsComponent` | Coupled pendulums | Energy (Noether) | Both pendulums + spring |
 
-### Shared Capabilities
-- **Real-time parameter tuning** — Adjust physical parameters at runtime through engine-native UI without recompiling
-- **Constraint visualization** — Render constraint forces and Lagrange multipliers as debug overlays
-- **Conservation monitoring** — In-engine HUD elements displaying energy drift and conservation law status
-- **Export pipeline** — `mechanicsdsl generate --target unity` and `--target unreal` CLI commands
+### Utilities
 
-### Example Projects
-- Physically accurate double pendulum with chaos visualization
-- Coupled oscillator audio synthesis (string vibration → sound)
-- Orbital mechanics sandbox with Keplerian trajectories
-- Rigid body gyroscope with Euler angle gimbal lock demonstration
-- Interactive Lagrangian mechanics tutorial scene for classroom use
+| Component | Description |
+|-----------|-------------|
+| `ConservationMonitor` | On-screen HUD for energy drift across any MechanicsDSL component |
+| `PhaseSpaceTrail` | Renders θ vs ω phase portrait as a LineRenderer trail |
+| `MechanicsDSLMath` | Generic RK4, symplectic Euler, angle wrap, bob position helpers |
+
+### Editor
+
+| Script | Description |
+|--------|-------------|
+| `PendulumComponentEditor` | Live state readout (θ, ω, t, E, \|ΔE/E₀\|) + Reset button |
+| `DoublePendulumComponentEditor` | Dual-angle live readout + Reset button |
 
 ---
 
-## Relationship to Core Package
+## Repository Structure
 
-This repository provides engine-specific scaffolding, CLI tooling, and example projects. Code generation lives in [mechanicsdsl](https://github.com/MechanicsDSL/mechanicsdsl):
+```
+mechanicsdsl-unity/
+├── Runtime/
+│   ├── Components/
+│   │   ├── PendulumComponent.cs
+│   │   ├── DoublePendulumComponent.cs
+│   │   └── CoupledPendulumsComponent.cs
+│   ├── Utilities/
+│   │   ├── ConservationMonitor.cs
+│   │   ├── PhaseSpaceTrail.cs
+│   │   └── MechanicsDSLMath.cs
+│   └── com.mechanicsdsl.unity.runtime.asmdef
+├── Editor/
+│   ├── PendulumComponentEditor.cs
+│   ├── DoublePendulumComponentEditor.cs
+│   └── com.mechanicsdsl.unity.editor.asmdef
+├── Tests/Runtime/
+│   ├── TestPendulumEOM.cs
+│   ├── TestDoublePendulumEOM.cs
+│   └── MechanicsDSL.Tests.Runtime.asmdef
+├── Samples~/
+│   ├── SimplePendulum/README.md
+│   └── DoublePendulum/README.md
+├── docs/
+│   ├── getting_started.md
+│   ├── components_reference.md
+│   └── adding_systems.md
+└── package.json                (UPM manifest)
+```
+
+---
+
+## Installation
+
+**Via UPM (Unity Package Manager):**
+
+1. Open **Window → Package Manager**
+2. Click **+** → **Add package from git URL**
+3. Enter: `https://github.com/MechanicsDSL/mechanicsdsl-unity.git`
+
+---
+
+## Quick Start
+
+1. Add **MechanicsDSL → Classical → Pendulum** to any GameObject
+2. Create a Sphere child and drag to **Bob Transform**
+3. Press Play — the sphere is driven by MechanicsDSL-generated Lagrangian equations
+
+The Inspector shows live θ, ω, E, and |ΔE/E₀| during Play Mode. Click **Reset** to return to initial conditions without stopping.
+
+---
+
+## Running Tests
+
+**Window → General → Test Runner → PlayMode → Run All**
+
+Tests cover energy conservation (5–10 s), reset/initial conditions, equilibrium stability, and bob Transform updates.
+
+---
+
+## Generating New Components
 
 ```bash
 pip install mechanicsdsl-core
-
-# Generate Unity component
-mechanicsdsl generate pendulum.msl --target unity --out Assets/Physics/
-
-# Generate Unreal component  
-mechanicsdsl generate pendulum.msl --target unreal --out Source/MyProject/Physics/
+mechanicsdsl generate my_system.msl --target unity --out Assets/Physics/
 ```
 
-The generated engine code has no Python dependency at runtime — it is self-contained C# or C++.
-
----
-
-## Status
-
-This repository is in the planning stage. The core package already generates Unity (C#) and Unreal (C++) code; this repository will provide the plugin packaging, Inspector/Blueprint integration, and example projects. Watch this repository for updates.
+See [docs/adding_systems.md](docs/adding_systems.md) for the full workflow.
 
 ---
 
 ## Contributing
 
-Contributions welcome — particularly from developers with Unreal or Unity plugin experience. See [CONTRIBUTING.md](https://github.com/MechanicsDSL/mechanicsdsl/blob/main/CONTRIBUTING.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) for details.
-
----
-
-<p align="center">
-  <a href="https://github.com/MechanicsDSL/mechanicsdsl">Core Package</a> ·
-  <a href="https://mechanicsdsl.readthedocs.io">Documentation</a> ·
-  <a href="https://doi.org/10.5281/zenodo.17771040">Zenodo DOI</a>
-</p>
+MIT License — see [LICENSE](LICENSE).
