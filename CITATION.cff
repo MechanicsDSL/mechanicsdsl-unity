@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+message: "If you use this software in your project, please cite:"
+type: software
+title: "MechanicsDSL Unity"
+abstract: >
+  Unity and Unreal Engine plugin packages for MechanicsDSL.
+  Provides physically accurate simulation components compiled from
+  DSL notation, targeting game development, digital twins,
+  interactive science exhibits, and educational physics visualisations.
+authors:
+  - family-names: Parsons
+    given-names: Noah
+    orcid: "https://orcid.org/0009-0000-7224-6040"
+    affiliation: "American Forge Institute & Eastern Wyoming College"
+repository-code: "https://github.com/MechanicsDSL/mechanicsdsl-unity"
+license: MIT
+date-released: "2026-03-13"
+keywords:
+  - Unity
+  - Unreal Engine
+  - physics simulation
+  - Lagrangian mechanics
+  - game engine
+references:
+  - type: software
+    title: "MechanicsDSL"
+    doi: "10.5281/zenodo.17771040"
+    authors:
+      - family-names: Parsons
+        given-names: Noah
