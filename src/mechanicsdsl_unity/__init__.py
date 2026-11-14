@@ -15,5 +15,22 @@ Quick start:
 
 from mechanicsdsl_unity._version import __version__
 from mechanicsdsl_unity._components import list_components, list_targets
+from mechanicsdsl_unity._bridge import (
+    CompiledSystem,
+    CoreNotInstalled,
+    DSLCompileError,
+    compile_spec,
+)
+from mechanicsdsl_unity._csharp import expr_to_csharp, render_component
 
-__all__ = ["__version__", "list_components", "list_targets"]
+__all__ = [
+    "__version__",
+    "list_components",
+    "list_targets",
+    "compile_spec",
+    "render_component",
+    "expr_to_csharp",
+    "CompiledSystem",
+    "CoreNotInstalled",
+    "DSLCompileError",
+]
