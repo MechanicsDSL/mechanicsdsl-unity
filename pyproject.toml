@@ -47,4 +47,4 @@ path = "src/mechanicsdsl_unity/_version.py"
 packages = ["src/mechanicsdsl_unity"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["Tests"]
