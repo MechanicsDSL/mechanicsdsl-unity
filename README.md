@@ -115,8 +115,40 @@ Tests cover energy conservation (5–10 s), reset/initial conditions, equilibriu
 
 ```bash
 pip install mechanicsdsl-core
-mechanicsdsl generate my_system.msl --target unity --out Assets/Physics/
+mechanicsdsl-unity generate my_system.msl --target unity --out Assets/Physics/
 ```
+
+The `mechanicsdsl-unity` CLI compiles any `.msl` spec (or core preset) through
+`mechanicsdsl-core` and writes engine code that integrates the derived
+equations of motion with RK4:
+
+```bash
+pip install mechanicsdsl-unity
+mechanicsdsl-unity targets
+mechanicsdsl-unity generate double_pendulum --target unity  -o Assets/Generated/
+mechanicsdsl-unity generate double_pendulum --target godot  -o scripts/
+mechanicsdsl-unity generate double_pendulum --target unreal -o Source/MyGame/
+mechanicsdsl-unity generate double_pendulum --target csharp -o lib/
+mechanicsdsl-unity generate --all-presets --target unity -o Assets/Generated/
+mechanicsdsl-unity inspect double_pendulum
+```
+
+| Target | Output | What you get |
+|--------|--------|--------------|
+| `unity` | `<Cls>Component.cs` | `MonoBehaviour`: Inspector parameters, sub-steps, pause, `GetState`/`SetState`, live `energy` and `energyDrift`, `OnStateUpdate` event |
+| `csharp` | `<Cls>Dynamics.cs` | engine-free .NET class (C# 5 syntax) for Godot C#, MonoGame, Stride, servers |
+| `godot` | `<system>_dynamics.gd` | Godot 4 GDScript `Node`: `@export` parameters, `state_updated` signal, `energy_drift` |
+| `unreal` | `<Cls>Dynamics.h`, `<Cls>Component.h/.cpp` | UE5 Blueprint-spawnable `UActorComponent` + engine-free C++17 dynamics |
+
+### How generated code is checked
+
+The standalone C# is compiled (`csc` or the .NET SDK, warnings as errors), run
+for 1000 RK4 steps and compared with a Python RK4 reference to 1e-12. The
+Unity component is compiled against a minimal `UnityEngine` stub, and the
+Unreal component against a minimal Unreal API stub with
+`g++ -Wall -Wextra -Werror`, then ticked to check energy drift. GDScript
+expressions are evaluated numerically against SymPy. These checks do not
+replace testing inside the real editors, which the test suite cannot run.
 
 See [docs/adding_systems.md](docs/adding_systems.md) for the full workflow.
 

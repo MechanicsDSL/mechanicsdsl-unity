@@ -78,7 +78,9 @@ def test_cli_generates_file(tmp_path):
     assert produced, "no .cs file generated"
 
 
-def test_unreal_target_is_honest():
-    # Unreal is advertised but not implemented; the CLI must say so, not lie.
-    rc = cli_main(["generate", "pendulum", "--target", "unreal", "-o", "."])
-    assert rc == 3
+def test_unreal_target_generates_component(tmp_path):
+    rc = cli_main(["generate", "pendulum", "--target", "unreal", "-o", str(tmp_path)])
+    assert rc == 0
+    names = sorted(p.name for p in tmp_path.iterdir())
+    assert names == ["SimplePendulumComponent.cpp", "SimplePendulumComponent.h",
+                     "SimplePendulumDynamics.h"]

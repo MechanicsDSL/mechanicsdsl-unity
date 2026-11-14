@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mechanicsdsl-unity"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Unity and Unreal Engine plugin packages for MechanicsDSL — physically accurate simulation components compiled from DSL notation"
 readme = "README.md"
 license = { text = "MIT" }
@@ -26,11 +26,11 @@ classifiers = [
 ]
 requires-python = ">=3.9"
 dependencies = [
-  "mechanicsdsl-core",
+  "mechanicsdsl-core>=2.1.4",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0", "ruff"]
+dev = ["pytest>=7.0", "pytest-cov", "ruff"]
 
 [project.scripts]
 mechanicsdsl-unity = "mechanicsdsl_unity.cli:main"
@@ -39,6 +39,9 @@ mechanicsdsl-unity = "mechanicsdsl_unity.cli:main"
 Homepage = "https://github.com/MechanicsDSL/mechanicsdsl-unity"
 Repository = "https://github.com/MechanicsDSL/mechanicsdsl-unity"
 DOI = "https://doi.org/10.5281/zenodo.17771040"
+
+[tool.hatch.version]
+path = "src/mechanicsdsl_unity/_version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mechanicsdsl_unity"]

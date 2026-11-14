@@ -37,7 +37,14 @@ _COMPONENTS: Dict[str, Dict] = {
     },
 }
 
-_TARGETS = ["unity", "unreal"]
+_TARGETS = ["unity", "csharp", "godot", "unreal"]
+
+TARGET_DESCRIPTIONS: Dict[str, str] = {
+    "unity": "Unity MonoBehaviour (C#), RK4 in FixedUpdate, energy-drift readout",
+    "csharp": "Engine-independent .NET class (C# 5): Godot C#, MonoGame, Stride, servers",
+    "godot": "Godot 4 GDScript Node with @export parameters and a state_updated signal",
+    "unreal": "Unreal Engine 5 UActorComponent (.h/.cpp) + engine-free C++17 dynamics",
+}
 
 
 def list_components() -> List[str]:

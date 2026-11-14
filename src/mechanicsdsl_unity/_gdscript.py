@@ -1,0 +1,236 @@
+"""
+_gdscript.py
+------------
+Godot 4 GDScript generator.
+
+Emits a ``Node`` script (``class_name <Cls>Dynamics``) that integrates the
+DSL-derived equations of motion in ``_physics_process`` with RK4. Parameters,
+initial conditions, sub-steps and pause are ``@export`` properties editable in
+the Inspector; a ``state_updated`` signal carries the state every physics
+tick; ``energy()`` and ``energy_drift`` monitor integration error.
+
+GDScript ``float`` is 64-bit, but ``1/2`` is *integer* division, so the printer
+writes every numeric literal as a float (``2.0``, ``(1.0/2.0)``).
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, List
+
+import sympy as sp
+from sympy.printing.str import StrPrinter
+
+from ._csharp import _pascal
+
+if TYPE_CHECKING:
+    from ._bridge import CompiledSystem
+
+
+_GD_FUNCS = {
+    "sin": "sin", "cos": "cos", "tan": "tan", "asin": "asin", "acos": "acos",
+    "atan": "atan", "atan2": "atan2", "sinh": "sinh", "cosh": "cosh",
+    "tanh": "tanh", "exp": "exp", "log": "log", "Abs": "absf",
+    "floor": "floor", "ceiling": "ceil",
+}
+
+GD_KEYWORDS = frozenset("""
+if elif else for while match break continue pass return class class_name extends
+is in as self signal func static const enum var breakpoint preload await yield
+assert void PI TAU INF NAN not and or super true false null
+""".split())
+
+
+class GDScriptPrinter(StrPrinter):
+    """Print SymPy expressions as GDScript 2.0 float expressions."""
+
+    def _print_Symbol(self, expr):
+        if expr.name in GD_KEYWORDS:
+            raise ValueError(f"'{expr.name}' is reserved in GDScript; rename it in the DSL")
+        return expr.name
+
+    def _print_Integer(self, expr):
+        return f"{int(expr)}.0"
+
+    def _print_Float(self, expr):
+        text = repr(float(expr))
+        return text if ("e" in text or "." in text) else text + ".0"
+
+    def _print_Rational(self, expr):
+        return f"({expr.p}.0/{expr.q}.0)"
+
+    def _print_Pi(self, expr):
+        return "PI"
+
+    def _print_Exp1(self, expr):
+        return "exp(1.0)"
+
+    def _print_Function(self, expr):
+        name = expr.func.__name__
+        if name not in _GD_FUNCS:
+            raise NotImplementedError(f"no GDScript mapping for '{name}'")
+        return f"{_GD_FUNCS[name]}({', '.join(self._print(a) for a in expr.args)})"
+
+    def _print_Pow(self, expr):
+        b, e = self._print(expr.base), expr.exp
+        if e == sp.Rational(1, 2) or e == sp.Float(0.5):
+            return f"sqrt({b})"
+        if e == -1:
+            return f"(1.0/({b}))"
+        return f"pow({b}, {self._print(e)})"
+
+
+def expr_to_gdscript(expr: "sp.Expr") -> str:
+    return GDScriptPrinter().doprint(expr)
+
+
+def _bind(system: "CompiledSystem", used: set, q: str, qd: str) -> List[str]:
+    out = []
+    for i, c in enumerate(system.coordinates):
+        if c in used:
+            out.append(f"\tvar {c}: float = {q}[{i}]")
+        if f"{c}_dot" in used:
+            out.append(f"\tvar {c}_dot: float = {qd}[{i}]")
+    return out
+
+
+def render_gdscript(system: "CompiledSystem") -> str:
+    """Render a Godot 4 GDScript ``Node`` for ``system``."""
+    pr = GDScriptPrinter()
+    cls = _pascal(system.name)
+    n, D = system.dof, system.state_dim
+    params = sorted(system.parameters)
+
+    exports = "\n".join(
+        f"@export var {p}: float = {pr.doprint(sp.Float(system.parameters[p]))}"
+        + (f"  # {system.units[p]}" if system.units.get(p) else "")
+        for p in params
+    )
+    ic_exports = "\n".join(
+        f"@export var initial_{s}: float = {pr.doprint(sp.Float(v))}"
+        for s, v in zip(system.state_names, system.initial_state())
+    )
+    reset = ", ".join(f"initial_{s}" for s in system.state_names)
+
+    exprs = [system.equations[f"{c}_ddot"] for c in system.coordinates]
+    used = set().union(*[{str(s) for s in e.free_symbols} for e in exprs])
+    temps, reduced = sp.cse(exprs, symbols=sp.numbered_symbols("mdsl_t"))
+    accel = "\n".join(
+        _bind(system, used, "mdsl_q", "mdsl_qd")
+        + [f"\tvar {s}: float = {pr.doprint(v)}" for s, v in temps]
+        + [f"\treturn PackedFloat64Array([{', '.join(pr.doprint(e) for e in reduced)}])"]
+    )
+
+    if system.energy is not None:
+        e_used = {str(s) for s in system.energy.free_symbols}
+        e_temps, (e_red,) = sp.cse([system.energy], symbols=sp.numbered_symbols("mdsl_e"))
+        q_slice = "mdsl_y"
+        energy = "\n".join(
+            [f"\tvar {c}: float = {q_slice}[{i}]" for i, c in enumerate(system.coordinates)
+             if c in e_used]
+            + [f"\tvar {c}_dot: float = mdsl_y[{n + i}]"
+               for i, c in enumerate(system.coordinates) if f"{c}_dot" in e_used]
+            + [f"\tvar {s}: float = {pr.doprint(v)}" for s, v in e_temps]
+            + [f"\treturn {pr.doprint(e_red)}"]
+        )
+    else:
+        energy = "\treturn 0.0"
+
+    src = "\n".join(f"#     {ln}" for ln in system.source.splitlines())
+    return f"""\
+# Auto-generated by mechanicsdsl-unity. DO NOT EDIT BY HAND.
+#
+# Godot 4 node integrating the equations of motion that mechanicsdsl-core
+# derived from:
+#
+{src}
+#
+class_name {cls}Dynamics
+extends Node
+
+## Emitted every physics tick with [{", ".join(system.state_names)}].
+signal state_updated(state: PackedFloat64Array)
+
+const DOF := {n}
+const STATE_DIM := {D}
+const STATE_NAMES := [{", ".join(f'"{s}"' for s in system.state_names)}]
+
+@export_group("Parameters")
+{exports}
+
+@export_group("Initial conditions")
+{ic_exports}
+
+@export_group("Integrator")
+@export_range(1, 64) var substeps: int = 1
+@export var paused: bool = false
+
+var state := PackedFloat64Array()
+var sim_time: float = 0.0
+var energy_drift: float = 0.0
+var _energy0: float = 0.0
+
+
+func _ready() -> void:
+\treset_state()
+
+
+func reset_state() -> void:
+\tstate = PackedFloat64Array([{reset}])
+\tsim_time = 0.0
+\t_energy0 = energy()
+\tenergy_drift = 0.0
+
+
+func _physics_process(delta: float) -> void:
+\tif paused:
+\t\treturn
+\tvar h: float = delta / substeps
+\tfor _i in range(substeps):
+\t\tstep(h)
+\tenergy_drift = absf(energy() - _energy0) / maxf(absf(_energy0), 1e-12)
+\tstate_updated.emit(state)
+
+
+## Generalized accelerations from positions and velocities.
+func accel(mdsl_q: PackedFloat64Array, mdsl_qd: PackedFloat64Array) -> PackedFloat64Array:
+{accel}
+
+
+func _deriv(mdsl_y: PackedFloat64Array) -> PackedFloat64Array:
+\tvar qdd := accel(mdsl_y.slice(0, DOF), mdsl_y.slice(DOF, STATE_DIM))
+\tvar out := PackedFloat64Array()
+\tout.resize(STATE_DIM)
+\tfor i in range(DOF):
+\t\tout[i] = mdsl_y[DOF + i]
+\t\tout[DOF + i] = qdd[i]
+\treturn out
+
+
+## One classic RK4 step of size h.
+func step(h: float) -> void:
+\tvar k1 := _deriv(state)
+\tvar tmp := PackedFloat64Array()
+\ttmp.resize(STATE_DIM)
+\tfor i in range(STATE_DIM):
+\t\ttmp[i] = state[i] + 0.5 * h * k1[i]
+\tvar k2 := _deriv(tmp)
+\tfor i in range(STATE_DIM):
+\t\ttmp[i] = state[i] + 0.5 * h * k2[i]
+\tvar k3 := _deriv(tmp)
+\tfor i in range(STATE_DIM):
+\t\ttmp[i] = state[i] + h * k3[i]
+\tvar k4 := _deriv(tmp)
+\tfor i in range(STATE_DIM):
+\t\tstate[i] += h / 6.0 * (k1[i] + 2.0 * k2[i] + 2.0 * k3[i] + k4[i])
+\tsim_time += h
+
+
+## Energy E = sum(qdot dL/dqdot) - L of the current state.
+func energy() -> float:
+	return energy_of(state)
+
+
+## Energy of an arbitrary state vector.
+func energy_of(mdsl_y: PackedFloat64Array) -> float:
+{energy}
+"""
